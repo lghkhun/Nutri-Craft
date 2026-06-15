@@ -1,0 +1,6 @@
+{
+  "name": "Nutri Craft",
+  "description": "Game edukasi simulasi pilihan makanan sehat dan gizi seimbang harian remaja berdasarkan prinsip Isi Piringku Kemenkes RI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
