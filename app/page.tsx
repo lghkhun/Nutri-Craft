@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Heart, 
@@ -74,13 +75,23 @@ interface LeaderboardEntry {
   date: string;
 }
 
-// Play Sound Helper using Web Audio API
-function playSynthSound(type: 'success' | 'fail' | 'click' | 'victory' | 'gameover', soundMuted: boolean) {
+let globalAudioCtx: AudioContext | null = null;
+
+function playSynthSound(type: 'success' | 'fail' | 'click' | 'victory' | 'gameover' | 'sparkle' | 'buzzer', soundMuted: boolean) {
   if (soundMuted || typeof window === 'undefined') return;
   try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;
-    const audioCtx = new AudioContextClass();
+    
+    if (!globalAudioCtx) {
+      globalAudioCtx = new AudioContextClass();
+    }
+    const audioCtx = globalAudioCtx;
+    
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     
@@ -92,7 +103,7 @@ function playSynthSound(type: 'success' | 'fail' | 'click' | 'victory' | 'gameov
       osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
       osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); // E5
       osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.2); // G5
-      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
       osc.start();
       osc.stop(audioCtx.currentTime + 0.35);
@@ -100,14 +111,14 @@ function playSynthSound(type: 'success' | 'fail' | 'click' | 'victory' | 'gameov
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(220, audioCtx.currentTime); // A3
       osc.frequency.linearRampToValueAtTime(110, audioCtx.currentTime + 0.35); // A2
-      gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
       osc.start();
       osc.stop(audioCtx.currentTime + 0.4);
     } else if (type === 'click') {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(380, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
       osc.start();
       osc.stop(audioCtx.currentTime + 0.08);
@@ -117,16 +128,33 @@ function playSynthSound(type: 'success' | 'fail' | 'click' | 'victory' | 'gameov
       osc.frequency.setValueAtTime(329.63, audioCtx.currentTime + 0.12); // E4
       osc.frequency.setValueAtTime(392.00, audioCtx.currentTime + 0.24); // G4
       osc.frequency.setValueAtTime(523.25, audioCtx.currentTime + 0.36); // C5
-      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.7);
       osc.start();
       osc.stop(audioCtx.currentTime + 0.7);
+    } else if (type === 'sparkle') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+      osc.frequency.linearRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+      osc.frequency.linearRampToValueAtTime(1600, audioCtx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.3);
+    } else if (type === 'buzzer') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+      osc.frequency.setValueAtTime(90, audioCtx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.4);
     } else if (type === 'gameover') {
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(196.00, audioCtx.currentTime); // G3
       osc.frequency.setValueAtTime(155.56, audioCtx.currentTime + 0.25); // Eb3
       osc.frequency.setValueAtTime(130.81, audioCtx.currentTime + 0.5); // C3
-      gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
       osc.start();
       osc.stop(audioCtx.currentTime + 0.8);
@@ -411,6 +439,8 @@ function getIsiPiringkuComponents(title: string, emoji: string, type: string): (
 // Educational Sorting Mini-Game Items Pool
 const MINI_GAME_ITEMS_POOL = [
   { name: "Nasi Putih", emoji: "🍚", cat: "karbo" as const, reason: "Nasi putih adalah sumber energi karbohidrat pokok harian tubuh!" },
+  { name: "Pempek Kapal Selam", emoji: "🥟", cat: "protein" as const, reason: "Pempek ikan tenggiri tinggi protein dan asam lemak omega, meski cukonya tinggi gula." },
+  { name: "Nasi Liwet Sunda", emoji: "🍚", cat: "karbo" as const, reason: "Nasi liwet dengan teri pete daun salam wangi mengandung energi dan protein." },
   { name: "Kentang Kukus", emoji: "🥔", cat: "karbo" as const, reason: "Kentang merupakan karbohidrat kompleks alami penahan kenyang lama." },
   { name: "Roti Gandum", emoji: "🍞", cat: "karbo" as const, reason: "Roti gandum kaya serat makanan baik untuk metabolisme perut bertenaga." },
   { name: "Oatmeal Sehat", emoji: "🥣", cat: "karbo" as const, reason: "Oatmeal gandum utuh melepaskan energi perlahan di jam belajar sekolah." },
@@ -464,6 +494,19 @@ export default function NutriCraftGame() {
   const [energy, setEnergy] = useState(75);
   const [budget, setBudget] = useState(25000);
   
+
+  // Helpers
+  const getDailyBudget = (dayIdx: number) => {
+    if (dayIdx <= 2) return 30000;
+    if (dayIdx <= 4) return 25000;
+    return 20000;
+  };
+
+  const [healthyDayStreak, setHealthyDayStreak] = useState(0);
+  const [showTutorialOverlay, setShowTutorialOverlay] = useState(false);
+  const [healthAnimating, setHealthAnimating] = useState<"up" | "down" | null>(null);
+  const [energyAnimating, setEnergyAnimating] = useState<"up" | "down" | null>(null);
+
   // Game Cycle tracking
   const [currentDayIdx, setCurrentDayIdx] = useState(0); // 0 (Senin) to 6 (Minggu)
   const [currentPhase, setCurrentPhase] = useState<"breakfast" | "lunch" | "dinner">("breakfast");
@@ -476,6 +519,7 @@ export default function NutriCraftGame() {
   
   // Active mobile view tab inside PWA context
   const [mobileTab, setMobileTab] = useState<"piringku" | "petualangan" | "indikator">("petualangan");
+  const [drawerTab, setDrawerTab] = useState<"piringku" | "indikator" | null>(null);
   
   // Logs of choices made
   const [choicesLog, setChoicesLog] = useState<{
@@ -574,6 +618,16 @@ export default function NutriCraftGame() {
             id: "b_bubur_1", title: "Bubur Ayam Lengkap + Telur Rebus", emoji: "🥣", cost: 12000, healthChange: 12, energyChange: 45,
             description: "Membeli bubur hangat dengan porsi daging ayam, seledri, dan sebutir telur rebus.", type: "healthy",
             education: "Sangat baik! Kombinasi karbohidrat bubur dan protein tinggi dari telur rebus memberi asupan gizi seimbang serta menjaga pelepasan energi stabil sehingga meningkatkan daya berpikir."
+          },
+          {
+            id: "b_liwet_1", title: "Nasi Liwet Sunda + Ikan Teri", emoji: "🍛", cost: 15000, healthChange: 14, energyChange: 40,
+            description: "Nasi liwet hangat wangi daun salam dengan taburan teri medan dan pete.", type: "healthy",
+            education: "Nasi liwet yang dibuat dengan rempah-rempah alami sehat untuk tubuh, dan ikan teri adalah sumber kalsium yang sangat baik untuk tulang remaja!"
+          },
+          {
+            id: "b_pempek_1", title: "Pempek Kapal Selam", emoji: "🥟", cost: 14000, healthChange: 8, energyChange: 35,
+            description: "Olahan ikan tenggiri berisi telur dengan kuah cuko asam manis.", type: "neutral",
+            education: "Ikan tenggiri tinggi protein dan omega-3 yang cerdas, tapi perhatikan asupan gula pada kuah cuko manisnya ya!"
           }
         ]
       },
@@ -600,9 +654,15 @@ export default function NutriCraftGame() {
       },
       dinner: {
         title: "Pukul 19.30: Makan Malam di Rumah",
-        conflict: "Ibu belum sempat memasak karena pulang kerja larut malam. Temukan makan malam dengan memanfaatkan sisa uang sakumu sebelum jam tidur!",
+        conflict: "Waktunya makan malam! Kamu bisa memesan makanan dari luar, atau menikmati hidangan spesial yang disiapkan oleh ayah/ibu di rumah.",
         choices: [
+          
           {
+            id: "d_home_1", title: "Masakan Ibu di Rumah", emoji: "🏠", cost: 0, healthChange: 20, energyChange: 35,
+            description: "Menikmati hidangan spesial kaya nutrisi yang disiapkan tanpa biaya tambahan.", type: "healthy",
+            education: "Makan malam bersama keluarga gratis, higienis, dan terjamin nutrisi seimbangnya sesuai panduan 'Isi Piringku'!"
+          },
+{
             id: "d_fastfood_1", title: "Pesan Paket Fried Chicken Online", emoji: "🍗", cost: 15000, healthChange: -8, energyChange: 35,
             description: "Ayam krispi goreng tepung tebal dengan saus sambal instan.", type: "unhealthy",
             education: "Fried chicken melalui proses deep frying menyerap minyak jenuh dosis tinggi yang berbahaya bagi jantung jangka panjang."
@@ -736,7 +796,13 @@ export default function NutriCraftGame() {
         title: "Pukul 19.30: Makan Malam Anti Kram Otot",
         conflict: "Otot kaki masih berdenyut pegal. Sisa uang Kakak masih pas-pas untuk menu malam bergizi kalsium tinggi.",
         choices: [
+          
           {
+            id: "d_home_1", title: "Masakan Ibu di Rumah", emoji: "🏠", cost: 0, healthChange: 20, energyChange: 35,
+            description: "Menikmati hidangan spesial kaya nutrisi yang disiapkan tanpa biaya tambahan.", type: "healthy",
+            education: "Makan malam bersama keluarga gratis, higienis, dan terjamin nutrisi seimbangnya sesuai panduan 'Isi Piringku'!"
+          },
+{
             id: "d_capcay_3", title: "Capcay Jamur + Tahu Putih Cah", emoji: "🥬", cost: 11000, healthChange: 15, energyChange: 40,
             description: "Masakan sayur berkuah hangat bening, irisan bakso sapi, sawi, jamur kuping.", type: "healthy",
             education: "Sayuran brokoli dan sawi menyumbang kalsium non-susu pelindung kekuatan tulang serta serat pereda sembelit malam hari."
@@ -870,7 +936,13 @@ export default function NutriCraftGame() {
         title: "Pukul 19.15: Makan Malam Hemat Keluarga",
         conflict: "Akhir pekan menjelang! Kantong menipis namun tubuh butuh asupan penutup minggu virtual.",
         choices: [
+          
           {
+            id: "d_home_1", title: "Masakan Ibu di Rumah", emoji: "🏠", cost: 0, healthChange: 20, energyChange: 35,
+            description: "Menikmati hidangan spesial kaya nutrisi yang disiapkan tanpa biaya tambahan.", type: "healthy",
+            education: "Makan malam bersama keluarga gratis, higienis, dan terjamin nutrisi seimbangnya sesuai panduan 'Isi Piringku'!"
+          },
+{
             id: "d_sayurasem_5", title: "Sajian Sayur Asem + Tempe Bakar + Nasi", emoji: "🍲", cost: 9000, healthChange: 15, energyChange: 40,
             description: "Asem jawa penyegar tenggorokan, jagung manis serat, tempe bebas kolesterol minyak goreng.", type: "healthy",
             education: "Tempe kedelai kaya akan isoflavon penangkal radikal bebas tubuh dari kelelahan, sayur asem merangsang nafsu makan sehat yang seimbang."
@@ -1063,7 +1135,7 @@ export default function NutriCraftGame() {
     setEnergy(prev => Math.min(100, prev + 15));
     setBudget(prev => prev + 5000);
     setMiniGameRewardClaimed(true);
-    setGameState("playing");
+    setGameState("playing"); setShowTutorialOverlay(true);
   };
 
   const answerMiniGameItem = (answerCat: "karbo" | "protein" | "sayur" | "buah_air" | "junk") => {
@@ -1119,12 +1191,16 @@ export default function NutriCraftGame() {
   };
 
   const handleStartGame = () => {
+    const bgm = document.getElementById("bgm") as HTMLAudioElement;
+    if (bgm) bgm.play().catch(() => {});
     playClick();
     setGameState("character_select");
   };
 
   const startWithCustomCharacter = () => {
     playClick();
+    const bgm = document.getElementById("bgm") as HTMLAudioElement;
+    if (bgm) bgm.play().catch(() => {});
     const customObj: Character = {
       id: "custom",
       name: customCharName || "Budi Sehat",
@@ -1136,7 +1212,7 @@ export default function NutriCraftGame() {
     // Reset stats to initial clean values
     setHealth(85);
     setEnergy(75);
-    setBudget(25000);
+    setBudget(getDailyBudget(0));
     setCurrentDayIdx(0);
     setCurrentPhase("breakfast");
     setChoicesLog([]);
@@ -1145,6 +1221,8 @@ export default function NutriCraftGame() {
 
   const handleSelectCharacter = (char: Character) => {
     playClick();
+    const bgm = document.getElementById("bgm") as HTMLAudioElement;
+    if (bgm) bgm.play().catch(() => {});
     // Prepopulate customizer with chosen default character archetype
     setCustomCharName(char.name);
     if (char.id === "budi") {
@@ -1169,7 +1247,7 @@ export default function NutriCraftGame() {
     // Reset stats to initial clean values
     setHealth(85);
     setEnergy(75);
-    setBudget(25000);
+    setBudget(getDailyBudget(0));
     setCurrentDayIdx(0);
     setCurrentPhase("breakfast");
     setChoicesLog([]);
@@ -1190,8 +1268,20 @@ export default function NutriCraftGame() {
 
     // Spend money & change stats
     const newBudget = budget - choice.cost;
+    
     const newHealth = Math.max(0, Math.min(100, health + choice.healthChange));
+    if (newHealth > health) { setHealthAnimating("up"); setTimeout(() => setHealthAnimating(null), 800); }
+    else if (newHealth < health) { setHealthAnimating("down"); setTimeout(() => setHealthAnimating(null), 800); }
+    if (newHealth > health) { setHealthAnimating("up"); setTimeout(() => setHealthAnimating(null), 800); }
+    else if (newHealth < health) { setHealthAnimating("down"); setTimeout(() => setHealthAnimating(null), 800); }
+
+    
     const newEnergy = Math.max(0, Math.min(100, energy + choice.energyChange));
+    if (newEnergy > energy) { setEnergyAnimating("up"); setTimeout(() => setEnergyAnimating(null), 800); }
+    else if (newEnergy < energy) { setEnergyAnimating("down"); setTimeout(() => setEnergyAnimating(null), 800); }
+    if (newEnergy > energy) { setEnergyAnimating("up"); setTimeout(() => setEnergyAnimating(null), 800); }
+    else if (newEnergy < energy) { setEnergyAnimating("down"); setTimeout(() => setEnergyAnimating(null), 800); }
+
 
     setBudget(newBudget);
     setHealth(newHealth);
@@ -1219,6 +1309,12 @@ export default function NutriCraftGame() {
       setTimeout(() => setIsShaking(false), 500);
     } else {
       playSynthSound('success', soundMuted);
+      confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.5 },
+        colors: ['#34d399', '#fbbf24', '#38bdf8']
+      });
     }
 
     // Show educational popup
@@ -1305,9 +1401,20 @@ export default function NutriCraftGame() {
         executeAiEvaluation();
       } else {
         // Transition to next day, reset daily allowance of pocket money to Rp25.000
+        
+        const todayChoices = choicesLog.slice(-3);
+        const isTodayHealthy = todayChoices.every(c => c.type === "healthy");
+        let newStreak = isTodayHealthy ? healthyDayStreak + 1 : 0;
+        setHealthyDayStreak(newStreak);
+
         setCurrentDayIdx(currentDayIdx + 1);
         setCurrentPhase("breakfast");
-        setBudget(25000); // Reset pocket money envelope harian
+        let baseBudget = getDailyBudget(currentDayIdx + 1);
+        if (newStreak >= 2) {
+          baseBudget += 5000;
+        }
+        setBudget(baseBudget);
+
       }
     }
   };
@@ -1405,7 +1512,7 @@ export default function NutriCraftGame() {
     setSelectedChar(null);
     setHealth(85);
     setEnergy(75);
-    setBudget(25000);
+    setBudget(getDailyBudget(0));
     setCurrentDayIdx(0);
     setCurrentPhase("breakfast");
     setChoicesLog([]);
@@ -1416,7 +1523,7 @@ export default function NutriCraftGame() {
     playClick();
     setMiniGameScore(0);
     setMiniGameIndex(0);
-    setMiniGameTimeLeft(30); // 30 seconds for 10 items
+    setMiniGameTimeLeft(45); // 30 seconds for 10 items
     setMiniGameStatus("intro");
     setMiniGameRewardClaimed(false);
     setMiniGameSelectedAnswer(null);
@@ -1478,16 +1585,7 @@ export default function NutriCraftGame() {
           </span>
         </div>
 
-        {/* Small animated visual indicator showing the PWA is successfully cached and available offline */}
-        <div className="flex items-center bg-emerald-700/50 border border-emerald-400/30 text-white font-mono text-[10px] sm:text-xs px-2.5 py-1 rounded-full space-x-1.5 shadow-inner" title="Aplikasi telah tersimpan di cache dan siap dimainkan kapan saja secara offline!">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-300"></span>
-          </span>
-          <Wifi className="w-3.5 h-3.5 text-emerald-250 animate-pulse" />
-          <span className="font-extrabold uppercase tracking-wider hidden sm:inline">PWA • Tersimpan Offline</span>
-          <span className="font-extrabold uppercase tracking-wider sm:hidden">Offline Siap</span>
-        </div>
+        {/* Removed offline indicator per user request */}
 
         <div className="flex items-center space-x-3">
           <button 
@@ -1511,53 +1609,117 @@ export default function NutriCraftGame() {
         </div>
       </header>
 
-      {/* Mobile-Friendly Navigation Tabs (Hanya muncul di HP/Tablet < lg) to fulfill PWA-like native feelings */}
-      <div className="lg:hidden flex justify-center px-4 pt-3 pb-1 z-20">
-        <div className="bg-[#fffdf0] border-4 border-emerald-800 rounded-2xl p-1.5 flex items-center space-x-1.5 shadow-[4px_4px_0px_#065f46] w-full max-w-md">
-          <button 
-            type="button"
-            onClick={() => { playClick(); setMobileTab("piringku"); }}
-            className={`flex-1 flex items-center justify-center space-x-1 py-2 rounded-xl text-xs font-mono font-black transition-all cursor-pointer select-none active:scale-95 ${
-              mobileTab === "piringku" 
-                ? "bg-emerald-500 text-white border-2 border-emerald-800 shadow-sm" 
-                : "text-emerald-900 bg-emerald-100/50 hover:bg-emerald-100 hover:scale-[1.02]"
-            }`}
+      
+      {/* Drawer Overlay for Piringku / Statistik */}
+      {drawerTab && (
+        <div className="fixed inset-0 z-50 flex justify-end lg:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setDrawerTab(null)} />
+          <div className="relative w-4/5 max-w-sm h-full bg-white shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col p-4 overflow-y-auto">
+            <button onClick={() => setDrawerTab(null)} className="absolute top-4 right-4 text-slate-500 hover:text-slate-700 bg-slate-100 p-2 rounded-full">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="mt-8 flex flex-col h-full space-y-4">
+              {drawerTab === "piringku" && (
+                <div className="bg-gradient-to-b from-lime-50 to-emerald-50 border-4 border-emerald-800 rounded-3xl p-5 shadow-[6px_6px_0px_#14532d] flex flex-col items-center">
+                  <div className="w-40 h-40 rounded-full border-4 border-emerald-900 bg-white relative overflow-hidden p-1 shadow-md mb-4 flex items-center justify-center">
+                    <img src="https://promkes.kemkes.go.id/image/slide/Isi_Piringku_1.png" alt="Isi Piringku Kemenkes" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "https://cdn-icons-png.flaticon.com/512/3252/3252113.png"; }} />
+                  </div>
+                  <h3 className="text-xl font-display font-black text-emerald-900 text-center tracking-wide mb-1">
+                    &quot;Isi Piringku&quot;
+                  </h3>
+                  <p className="text-xs font-sans text-emerald-700/80 text-center font-bold mb-4">
+                    Pedoman Gizi Seimbang
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 w-full mt-2">
+                    <div className="bg-white/80 p-2 rounded-xl text-center border-2 border-emerald-200">
+                      <span className="text-xl block mb-1">🍚</span>
+                      <span className="text-[10px] font-bold text-emerald-800">Makanan Pokok<br/>(1/3 Piring)</span>
+                    </div>
+                    <div className="bg-white/80 p-2 rounded-xl text-center border-2 border-emerald-200">
+                      <span className="text-xl block mb-1">🥦</span>
+                      <span className="text-[10px] font-bold text-emerald-800">Sayuran<br/>(1/3 Piring)</span>
+                    </div>
+                    <div className="bg-white/80 p-2 rounded-xl text-center border-2 border-emerald-200">
+                      <span className="text-xl block mb-1">🍗</span>
+                      <span className="text-[10px] font-bold text-emerald-800">Lauk Pauk<br/>(1/6 Piring)</span>
+                    </div>
+                    <div className="bg-white/80 p-2 rounded-xl text-center border-2 border-emerald-200">
+                      <span className="text-xl block mb-1">🍉</span>
+                      <span className="text-[10px] font-bold text-emerald-800">Buah-buahan<br/>(1/6 Piring)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {drawerTab === "indikator" && (
+                <div className="bg-[#fefce8] border-4 border-amber-800 rounded-3xl p-5 shadow-[6px_6px_0px_#451a03] flex flex-col min-h-[400px]">
+                  <h3 className="text-xl font-display font-black text-amber-900 tracking-wide mb-4 flex items-center">
+                    <BookOpen className="w-6 h-6 mr-2 text-amber-600" />
+                    Jurnal Nutrisi
+                  </h3>
+                  <div className="flex-1 overflow-y-auto bg-white/50 rounded-2xl border-2 border-amber-200 p-2 space-y-2 mb-4">
+                    {choicesLog.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-amber-600/50 p-4 text-center">
+                        <BookOpen className="w-12 h-12 mb-2 opacity-30" />
+                        <span className="text-xs font-bold">Belum ada makanan yang dimakan. Ayo mulai petualanganmu!</span>
+                      </div>
+                    ) : (
+                      choicesLog.map((log, idx) => (
+                        <div key={idx} className="bg-white p-3 rounded-xl border border-amber-100 shadow-sm flex items-start space-x-3">
+                          <div className="text-2xl pt-1">
+                            {log.type === "healthy" ? "✅" : log.type === "neutral" ? "➖" : "❌"}
+                          </div>
+                          <div className="flex-1">
+                            <span className="text-[10px] font-bold text-amber-500 block mb-0.5">{log.day} - {log.phase}</span>
+                            <span className="text-xs font-black text-amber-900 block leading-tight">{log.food}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <button 
+                    onClick={() => { playClick(); setGameState("pedia"); setDrawerTab(null); }}
+                    className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-mono font-bold text-sm rounded-xl border-b-4 border-amber-700 transition-all cursor-pointer shadow active:scale-95 flex items-center justify-center space-x-2"
+                  >
+                    <BookOpen className="w-5 h-5" />
+                    <span>Tanya dr. Nutri</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Buttons */}
+      {gameState === "playing" && (
+        <div className="fixed bottom-6 right-6 z-40 flex flex-col space-y-3 lg:hidden">
+          <button
+            onClick={() => { playClick(); setDrawerTab("piringku"); }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full p-3 shadow-lg hover:scale-110 transition-transform flex items-center justify-center"
           >
-            <span>🍽️</span>
-            <span>Piringku</span>
+            <span className="text-xl">🍽️</span>
           </button>
-          <button 
-            type="button"
-            onClick={() => { playClick(); setMobileTab("petualangan"); }}
-            className={`flex-1 flex items-center justify-center space-x-1 py-2 rounded-xl text-xs font-mono font-black transition-all cursor-pointer select-none active:scale-95 ${
-              mobileTab === "petualangan" 
-                ? "bg-emerald-500 text-white border-2 border-emerald-800 shadow-sm" 
-                : "text-emerald-900 bg-emerald-100/50 hover:bg-emerald-100 hover:scale-[1.02]"
-            }`}
+          <button
+            onClick={() => { playClick(); setDrawerTab("indikator"); }}
+            className="bg-amber-500 hover:bg-amber-600 text-white rounded-full p-3 shadow-lg hover:scale-110 transition-transform flex items-center justify-center"
           >
-            <span>🎮</span>
-            <span>Bermain</span>
+            <BookOpen className="w-6 h-6" />
           </button>
-          <button 
-            type="button"
-            onClick={() => { playClick(); setMobileTab("indikator"); }}
-            className={`flex-1 flex items-center justify-center space-x-1 py-2 rounded-xl text-xs font-mono font-black transition-all cursor-pointer select-none active:scale-95 ${
-              mobileTab === "indikator" 
-                ? "bg-emerald-500 text-white border-2 border-emerald-800 shadow-sm" 
-                : "text-emerald-900 bg-emerald-100/50 hover:bg-emerald-100 hover:scale-[1.02]"
-            }`}
+          <button
+            onClick={() => { playClick(); setGameState("tutorial"); }}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-3 shadow-lg hover:scale-110 transition-transform flex items-center justify-center animate-bounce"
           >
-            <span>📊</span>
-            <span>Statistik</span>
+            <HelpCircle className="w-6 h-6" />
           </button>
         </div>
-      </div>
+      )}
 
-      {/* Main interactive grid: Three columns design inspired by the cartoon infographic */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full max-w-7xl mx-auto px-4 py-6 z-10 flex-1">
+
+{/* Main interactive grid: Three columns design inspired by the cartoon infographic */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full max-w-7xl mx-auto px-4 py-4 z-10 flex-1 h-[calc(100dvh-70px)] overflow-hidden">
         
         {/* COLUMN 1 (LEFT): NUTRISI SEIMBANG INFO-BOARD (Isi Piringku) */}
-        <div className={`lg:col-span-3 bg-gradient-to-b from-lime-50 to-emerald-50 border-4 border-emerald-850 rounded-3xl p-5 shadow-[6px_6px_0px_#14532d] flex-col items-center relative overflow-hidden ${mobileTab === 'piringku' ? 'flex' : 'hidden lg:flex'}`}>
+        <div className={`lg:col-span-3 bg-gradient-to-b from-lime-50 to-emerald-50 border-4 border-emerald-850 rounded-3xl p-5 shadow-[6px_6px_0px_#14532d] hidden lg:flex flex-col items-center relative overflow-hidden h-full`}>
           <div className="bg-emerald-600 border-2 border-emerald-900 text-white font-black px-4 py-1.5 rounded-full text-xs uppercase tracking-wide shadow-sm mb-4">
             🍏 ISI PIRINGKU
           </div>
@@ -1608,7 +1770,7 @@ export default function NutriCraftGame() {
 
         {/* COLUMN 2 (CENTER) - MAIN GAME PLAYGROUND BOARD */}
         <div 
-          className={`lg:col-span-6 bg-[#fffbeb] border-4 border-amber-805 rounded-3xl shadow-[8px_8px_0px_#451a03] p-4 sm:p-6 relative overflow-hidden flex-col justify-between min-h-[540px] ${mobileTab === 'petualangan' ? 'flex' : 'hidden lg:flex'}`}
+          className={`lg:col-span-6 bg-[#fffbeb] border-4 border-amber-805 rounded-3xl shadow-[8px_8px_0px_#451a03] p-3 sm:p-6 relative overflow-hidden flex flex-col lg:min-h-[540px] h-full`}
           id="StageStage_container"
         >
           
@@ -2253,7 +2415,7 @@ export default function NutriCraftGame() {
                     
                     {/* The immersive room background box */}
                     <div 
-                      className={`h-[260px] border-4 border-amber-900 rounded-3xl relative overflow-hidden flex flex-col items-center justify-center shadow-lg transition-all duration-300 ${
+                      className={`h-[150px] sm:h-[260px] border-4 border-amber-900 rounded-3xl relative overflow-hidden flex flex-col items-center justify-center shadow-lg transition-all duration-300 ${
                         customCharBackground === "room" 
                           ? "bg-gradient-to-b from-[#fef08a] to-[#fde047] border-[#854d0e]" 
                           : customCharBackground === "backyard"
@@ -2320,100 +2482,84 @@ export default function NutriCraftGame() {
 
             {/* 6. GAMEPLAY UTAMA (7 HARI SIKLUS VIRTUAL) */}
             {gameState === "playing" && selectedChar && (
-              <motion.div 
+              <div 
                 key="playing"
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex-1 flex flex-col space-y-5"
+                className="flex-1 flex flex-col space-y-3 sm:space-y-4 animate-in fade-in duration-500 overflow-hidden"
                 id="view_gameplay"
               >
                 {/* HUD STATUS HEADER BAR */}
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm" id="game_hud">
-                  
-                  {/* Character Avatar info */}
-                  <div className="flex items-center space-x-3 border-r border-slate-200/60 pr-2">
-                    {selectedChar.id === "custom" ? (
-                      <div className="w-12 h-12 bg-amber-100 border-2 border-amber-500 rounded-full overflow-hidden flex items-center justify-center p-0.5 shadow-inner">
-                        {renderCustomCharacter(customCharSkin, customCharHair, customCharOutfit, "w-10 h-10")}
+                <div id="game_hud" className="flex flex-col gap-1.5 sm:gap-2 bg-white/95 backdrop-blur-md p-2 sm:p-3 rounded-xl border border-slate-200 shadow-sm sticky top-0 z-40">
+                  <div className="flex flex-row items-center justify-between gap-1 sm:gap-2">
+                    {/* Character Avatar info */}
+                    <div className="flex items-center space-x-1.5 w-[30%] min-w-0 border-r border-slate-200/60 pr-1.5">
+                      {selectedChar.id === "custom" ? (
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 bg-amber-100 border border-amber-500 rounded-full overflow-hidden flex items-center justify-center p-0.5 shadow-inner">
+                          {renderCustomCharacter(customCharSkin, customCharHair, customCharOutfit, "w-6 h-6 sm:w-8 sm:h-8")}
+                        </div>
+                      ) : (
+                        <span className="text-xl sm:text-3xl shrink-0 select-none animate-float">{selectedChar.avatar}</span>
+                      )}
+                      <div className="truncate flex-1">
+                        <h4 className="font-display font-black text-slate-850 leading-none text-[11px] sm:text-sm truncate">{selectedChar.name}</h4>
+                        <span className="text-[8px] sm:text-[10px] font-mono text-slate-400 block mt-0.5 font-bold truncate">Kls 8</span>
                       </div>
-                    ) : (
-                      <span className="text-4xl select-none animate-float">{selectedChar.avatar}</span>
-                    )}
-                    <div>
-                      <h4 className="font-display font-black text-slate-850 leading-none text-sm">{selectedChar.name}</h4>
-                      <span className="text-[10px] font-mono text-slate-400 block mt-1 font-bold">Remaja Kelas 8</span>
                     </div>
-                  </div>
 
-                  {/* Health Bar */}
-                  <div className="flex flex-col justify-center">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] font-mono font-bold text-rose-500 uppercase tracking-wider flex items-center space-x-1">
-                        <Heart className="w-3.5 h-3.5 fill-rose-500 animate-pulse text-rose-500 mr-1" />
-                        <span>Kesehatan (Health)</span>
-                      </span>
-                      <span className="text-xs font-mono font-black text-rose-600">{health}%</span>
+                    {/* Health & Energy Bars */}
+                    <div className="flex flex-col flex-1 gap-1.5 min-w-0 px-1">
+                      {/* Health Bar */}
+                      <div className="flex items-center gap-1.5">
+                        <Heart className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 fill-rose-500 animate-pulse text-rose-500" />
+                        <div className="flex-1 h-1.5 sm:h-2 bg-rose-100 rounded-full overflow-hidden border border-rose-300">
+                          <motion.div 
+                            className={`h-full rounded-full ${health > 35 ? 'bg-rose-500' : 'bg-red-650 animate-pulse'}`} 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${health}%` }}
+                            transition={{ duration: 0.3 }}
+                          />
+                        </div>
+                      </div>
+                      {/* Energy Bar */}
+                      <div className="flex items-center gap-1.5">
+                        <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 fill-sky-200 text-sky-500" />
+                        <div className="flex-1 h-1.5 sm:h-2 bg-sky-100 rounded-full overflow-hidden border border-sky-305">
+                          <motion.div 
+                            className="h-full bg-sky-500 rounded-full" 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${energy}%` }}
+                            transition={{ duration: 0.3 }}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="w-full h-2.5 bg-rose-100 rounded-full overflow-hidden border border-rose-300">
-                      <motion.div 
-                        className={`h-full rounded-full ${health > 35 ? 'bg-rose-500' : 'bg-red-650 animate-pulse bg-red-600'}`} 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${health}%` }}
-                        transition={{ duration: 0.3 }}
-                      />
-                    </div>
-                  </div>
 
-                  {/* Energy Bar */}
-                  <div className="flex flex-col justify-center">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] font-mono font-bold text-sky-500 uppercase tracking-wider flex items-center space-x-1">
-                        <Flame className="w-3.5 h-3.5 fill-sky-200 text-sky-500 mr-1" />
-                        <span>Energi (Energy)</span>
+                    {/* Pocket money envelope budget */}
+                    <div className="flex items-center shrink-0 space-x-1 sm:space-x-2 pl-1.5 sm:pl-2 border-l border-slate-200/60">
+                      <span className="p-1 sm:p-1.5 bg-amber-100 border border-amber-300 rounded-md text-amber-600">
+                        <CircleDollarSign className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                       </span>
-                      <span className="text-xs font-mono font-black text-sky-600">{energy}%</span>
-                    </div>
-                    <div className="w-full h-2.5 bg-sky-100 rounded-full overflow-hidden border border-sky-305">
-                      <motion.div 
-                        className="h-full bg-sky-500 rounded-full" 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${energy}%` }}
-                        transition={{ duration: 0.3 }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Pocket money envelope budget */}
-                  <div className="flex items-center space-x-2.5 pl-2 border-l border-slate-200/60 justify-end sm:justify-start">
-                    <span className="p-1.5 bg-amber-100 border border-amber-300 rounded-lg text-amber-600 animate-float">
-                      <CircleDollarSign className="w-6 h-6" />
-                    </span>
-                    <div>
-                      <span className="text-[9px] font-mono font-extrabold uppercase text-slate-400 block">Uang Saku Hari Ini</span>
-                      <span className="text-base font-mono font-black text-amber-700 leading-none">
-                        Rp {budget.toLocaleString("id-ID")}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="text-[7px] sm:text-[9px] font-mono font-extrabold uppercase text-slate-400 leading-none">Saku</span>
+                        <span className="text-[10px] sm:text-xs font-mono font-black text-amber-700 leading-none mt-0.5">
+                          {budget.toLocaleString("id-ID")}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
                   {/* PWA / Isi Piringku Daily Goal Tracker */}
-                  <div className="sm:col-span-4 border-t border-dashed border-slate-200/80 pt-3 mt-1.5 flex flex-col xl:flex-row xl:items-center justify-between gap-2">
-                    <div className="flex flex-col">
-                      <div className="flex items-center space-x-1.5">
-                        <span className="text-xs font-mono font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 uppercase tracking-wide">
-                          🎯 GOAL HARIAN
-                        </span>
-                        <h5 className="text-xs font-sans font-black text-slate-700">Isi Piringku Seimbang</h5>
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-1 font-sans font-medium">Lengkapi 4 kelompok nutrisi sehat hari ini melalui pilihan makananmu:</p>
+                  <div className="flex flex-row items-center justify-between gap-1 sm:gap-2 pt-1.5 border-t border-slate-100/80">
+                    <div className="flex items-center space-x-1 shrink-0 mr-1 sm:mr-2">
+                      <span className="text-[8px] sm:text-[10px] font-mono font-black text-emerald-600 bg-emerald-50 px-1 sm:px-2 py-0.5 rounded border border-emerald-200 uppercase">
+                        🎯 GOAL
+                      </span>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 flex-1 w-full max-w-xl xl:ml-4">
+                    <div className="flex flex-row gap-1 sm:gap-2 flex-1 w-full overflow-x-auto no-scrollbar">
                       {[
-                        { key: "karbo", label: "Karbohidrat", emoji: "🌾", desc: "Makanan Pokok" },
-                        { key: "protein", label: "Protein", emoji: "🍗", desc: "Lauk Pauk" },
-                        { key: "sayur", label: "Sayuran", emoji: "🥦", desc: "Serat & Mineral" },
-                        { key: "buah_air", label: "Buah & Air", emoji: "🍎", desc: "Ketahanan & Hidrasi" }
+                        { key: "karbo", label: "Karbo", emoji: "🌾", desc: "Pokok" },
+                        { key: "protein", label: "Protein", emoji: "🍗", desc: "Lauk" },
+                        { key: "sayur", label: "Sayur", emoji: "🥦", desc: "Serat" },
+                        { key: "buah_air", label: "Buah", emoji: "🍎", desc: "Air" }
                       ].map((item) => {
                         const dailyProgress = getDailyGoalProgress();
                         const isDone = dailyProgress[item.key as keyof typeof dailyProgress];
@@ -2421,25 +2567,24 @@ export default function NutriCraftGame() {
                           <div
                             key={item.key}
                             id={`hud_goal_${item.key}`}
-                            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl border transition-all duration-300 ${
+                            className={`flex items-center space-x-1 sm:space-x-1.5 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-xl border transition-all duration-300 whitespace-nowrap ${
                               isDone
                                 ? "bg-emerald-50/80 border-emerald-400 text-emerald-900 shadow-sm"
                                 : "bg-slate-100/50 border-slate-200 text-slate-400 opacity-60"
                             }`}
                             title={`${item.label} (${isDone ? "Terpenuhi" : "Belum terpenuhi"})`}
                           >
-                            <span className={`text-base leading-none select-none ${isDone ? "" : "grayscale opacity-50"}`}>{item.emoji}</span>
+                            <span className={`text-[9px] sm:text-sm leading-none select-none ${isDone ? "" : "grayscale opacity-50"}`}>{item.emoji}</span>
                             <div className="flex flex-col text-left">
-                              <span className={`text-[10px] font-mono leading-none font-black ${isDone ? "text-emerald-800" : "text-slate-500"}`}>
+                              <span className={`text-[8px] sm:text-[10px] font-mono leading-none font-black ${isDone ? "text-emerald-800" : "text-slate-500"}`}>
                                 {item.label}
                               </span>
-                              <span className="text-[8px] font-sans text-slate-400 leading-none mt-0.5">{item.desc}</span>
                             </div>
-                            <span className="ml-auto flex items-center justify-center">
+                            <span className="ml-0.5 sm:ml-auto flex items-center justify-center">
                               {isDone ? (
-                                <span className="text-xs font-black text-emerald-600 animate-bounce">✓</span>
+                                <span className="text-[7px] sm:text-xs font-black text-emerald-600 animate-bounce">✓</span>
                               ) : (
-                                <span className="text-[9px] text-slate-400">⏱️</span>
+                                <span className="text-[7px] sm:text-[9px] text-slate-400">⏱️</span>
                               )}
                             </span>
                           </div>
@@ -2467,7 +2612,7 @@ export default function NutriCraftGame() {
                 </div>
 
                 {/* ACTIVE CONFLICT VIEW (PHASE SCENARIO CARD) */}
-                <div className="border border-slate-200 bg-white shadow-md rounded-2xl overflow-hidden flex-1 flex flex-col sm:grid sm:grid-cols-5">
+                <div className="border border-slate-200 bg-white shadow-md rounded-2xl flex-1 flex flex-col sm:grid sm:grid-cols-5 overflow-y-auto">
                   
                   {/* Left phase info panel */}
                   <div className="sm:col-span-2 bg-slate-50 border-r border-slate-100 p-5 flex flex-col justify-between relative min-h-[200px]">
@@ -2545,7 +2690,7 @@ export default function NutriCraftGame() {
                     )}
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {/* 7. GAME OVER */}
@@ -2933,7 +3078,7 @@ export default function NutriCraftGame() {
       </div> {/* Closes Column 2 Card */}
 
         {/* COLUMN 3: RIGHT PANEL - INDIKATOR DALAM GAME */}
-        <div className={`lg:col-span-3 bg-[#fefce8] border-4 border-amber-805 rounded-3xl p-5 shadow-[6px_6px_0px_#451a03] relative overflow-hidden flex-col justify-between min-h-[400px] ${mobileTab === 'indikator' ? 'flex' : 'hidden lg:flex'}`}>
+        <div className={`lg:col-span-3 bg-[#fefce8] border-4 border-amber-805 rounded-3xl p-5 shadow-[6px_6px_0px_#451a03] relative overflow-hidden hidden lg:flex flex-col justify-between h-full`}>
           <div>
             <div className="bg-amber-600 border-2 border-amber-900 text-white font-black text-center px-4 py-1.5 rounded-full text-xs uppercase tracking-wide shadow-sm mb-4">
               📋 INDIKATOR GAME
@@ -3040,7 +3185,7 @@ export default function NutriCraftGame() {
                 </div>
 
                 {/* Main message */}
-                <p className="text-xs text-slate-650 leading-relaxed font-sans my-4 py-1.5 bg-slate-50 border border-slate-200/60 p-3 rounded-xl whitespace-pre-line">
+                <p className="text-[10px] sm:text-xs text-slate-650 leading-snug font-sans my-3 py-1.5 bg-slate-50 border border-slate-200/60 p-2 sm:p-3 rounded-xl whitespace-pre-line max-h-24 overflow-y-auto">
                   {feedbackDialog.message}
                 </p>
 
@@ -3079,6 +3224,8 @@ export default function NutriCraftGame() {
             </div>
           )}
         </AnimatePresence>
+        
+        <audio id="bgm" src="https://raw.githubusercontent.com/photonstorm/phaser3-examples/master/public/assets/audio/bodenstaendig_2000_in_rock_4bit.mp3" loop autoPlay muted={soundMuted || gameState === "menu"} />
 
     </div>
   );
